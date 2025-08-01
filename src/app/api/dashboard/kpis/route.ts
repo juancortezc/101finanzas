@@ -8,58 +8,56 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get('year') || '2025')
     const month = parseInt(searchParams.get('month') || '6')
 
-    // Función para obtener valores exactos por códigos específicos
-    const getExactValues = async (targetYear: number, targetMonth: number) => {
-      const [ingresosData, costosData, rentabilidadData] = await Promise.all([
-        // Ingresos - código exacto '4'
-        prisma.chartOfAccountEntry.findFirst({
-          where: {
-            year: targetYear,
-            month: targetMonth,
-            account: {
-              code: '4'
+    // Función para obtener valores agregados por códigos que empiecen con
+    const getAggregatedValues = async (targetYear: number, targetMonth: number) => {
+      // Obtener todas las entradas del mes
+      const monthData = await prisma.chartOfAccountEntry.findMany({
+        where: {
+          year: targetYear,
+          month: targetMonth
+        },
+        include: {
+          account: {
+            select: {
+              code: true,
+              name: true
             }
           }
-        }),
-        // Costos - código exacto '5.1'
-        prisma.chartOfAccountEntry.findFirst({
-          where: {
-            year: targetYear,
-            month: targetMonth,
-            account: {
-              code: '5.1'
-            }
-          }
-        }),
-        // Rentabilidad - código exacto '6'
-        prisma.chartOfAccountEntry.findFirst({
-          where: {
-            year: targetYear,
-            month: targetMonth,
-            account: {
-              code: '6'
-            }
-          }
-        })
-      ])
+        }
+      })
 
-      return {
-        ingresos: ingresosData ? parseFloat(ingresosData.value.toString()) : 0,
-        costos: costosData ? parseFloat(costosData.value.toString()) : 0,
-        rentabilidad: rentabilidadData ? parseFloat(rentabilidadData.value.toString()) : 0
-      }
+      let ingresos = 0
+      let costos = 0  
+      let rentabilidad = 0
+
+      monthData.forEach(entry => {
+        const accountCode = entry.account.code
+        const value = parseFloat(entry.value.toString())
+
+        // Clasificar por código de cuenta:
+        // 4* = Ingresos, 5.1* = Costos, 6* = Rentabilidad
+        if (accountCode.startsWith('4')) {
+          ingresos += value
+        } else if (accountCode.startsWith('5.1')) {
+          costos += value
+        } else if (accountCode.startsWith('6')) {
+          rentabilidad += value
+        }
+      })
+
+      return { ingresos, costos, rentabilidad }
     }
 
     // Obtener datos del período actual
-    const currentData = await getExactValues(year, month)
+    const currentData = await getAggregatedValues(year, month)
 
     // Obtener datos del período anterior (mes anterior)
     const prevMonth = month === 1 ? 12 : month - 1
     const prevYear = month === 1 ? year - 1 : year
-    const previousData = await getExactValues(prevYear, prevMonth)
+    const previousData = await getAggregatedValues(prevYear, prevMonth)
 
     // Obtener datos del año anterior
-    const yearAgoData = await getExactValues(year - 1, month)
+    const yearAgoData = await getAggregatedValues(year - 1, month)
 
     // Calcular porcentajes
     const costPercentage = currentData.ingresos !== 0 ? 
