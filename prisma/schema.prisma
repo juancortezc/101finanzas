@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id              String       @id @db.Uuid
+  commercial_name String       @db.VarChar(255)
+  legal_name      String?      @db.VarChar(255)
+  active          Boolean?     @default(true)
+  createdAt       DateTime?    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime?    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  costCenters     CostCenter[]
+
+  @@map("business")
+}
+
+model CostCenter {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String    @db.VarChar(255)
+  code       String?   @db.VarChar(50)
+  businessId String?   @map("business_id") @db.Uuid
+  active     Boolean?  @default(true)
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt  DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_7110175190535e48f995ef0106b")
+
+  @@map("cost_centers")
+}
+
+model ChartOfAccount {
+  id             String                @id(map: "PK_5a7a02c20412299d198e097a8fe") @db.Uuid
+  code           String                @unique(map: "UQ_490319656e54a7957dc1fed027c") @db.VarChar
+  name           String                @db.VarChar
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountEntries ChartOfAccountEntry[]
+
+  @@map("accounts")
+}
+
+model ChartOfAccountEntry {
+  accountId    String         @map("account_id") @db.Uuid
+  costCenterId String         @map("cost_center_id") @db.Uuid
+  month        Int
+  year         Int
+  value        Decimal        @default(0) @db.Decimal(15, 2)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  id           String         @id(map: "PK_94c23dae3447bd0f9bbf061c14f") @db.Uuid
+  account      ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_e16c4823b1adc2d5fd8d13b95f8")
+
+  @@unique([accountId, costCenterId, month, year], map: "IDX_b38fd928ef031c2c3a6034d9d6")
+  @@map("chart_of_account_entries")
+}
+
+model AlertThreshold {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?
+  type        String   @db.VarChar(50)
+  category    String   @db.VarChar(100)
+  minValue    Decimal? @map("min_value") @db.Decimal(15, 2)
+  maxValue    Decimal? @map("max_value") @db.Decimal(15, 2)
+  targetValue Decimal? @map("target_value") @db.Decimal(15, 2)
+  alertLevel  String   @db.VarChar(20)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("alert_thresholds")
+}
+
+model AuthConfig {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  value       String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("auth_config")
+}
+
+model access_tokens {
+  id             String           @id(map: "PK_65140f59763ff994a0252488166") @db.VarChar
+  revoked        Boolean          @default(false)
+  expires_at     DateTime         @db.Timestamp(6)
+  system_user_id Int?
+  system_users   system_users?    @relation(fields: [system_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_18f7d23c9e30eb405c41d63c727")
+  refresh_tokens refresh_tokens[]
+}
+
+model bills {
+  id                    Int               @id(map: "PK_a56215dfcb525755ec832cc80b7") @default(autoincrement())
+  type                  bills_type_enum
+  status                bills_status_enum @default(INGRESADO)
+  date                  DateTime?         @db.Date
+  document_number       String?           @db.VarChar(255)
+  total                 Float
+  is_an_invoice         Boolean           @default(true)
+  description           String?           @db.VarChar
+  due_date              DateTime          @db.Date
+  is_deleted            Boolean           @default(false)
+  entered_at            DateTime          @default(now()) @db.Timestamptz(6)
+  settled_at            DateTime?         @db.Timestamptz(6)
+  created_at            DateTime          @default(now()) @db.Timestamp(6)
+  updated_at            DateTime          @default(now()) @db.Timestamp(6)
+  business_id           Int
+  was_due_date_reviewed Boolean           @default(false)
+
+  @@index([business_id, document_number], map: "IDX_e9bfc3026882f378fe86a57212")
+}
+
+model chart_of_accounts_files {
+  id         String                              @id(map: "PK_d77d72c5f317433b07830c228a9") @db.Uuid
+  status     chart_of_accounts_files_status_enum
+  path       String                              @db.VarChar
+  month      Int
+  year       Int
+  overwrite  Boolean
+  errors     String[]
+  created_at DateTime                            @default(now()) @db.Timestamptz(6)
+  updated_at DateTime?                           @db.Timestamptz(6)
+}
+
+model dashboard {
+  id           Int      @id(map: "PK_233ed28fa3a1f9fbe743f571f75") @default(autoincrement())
+  bank_balance Float    @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model refresh_tokens {
+  id            String         @id(map: "PK_7d8bee0204106019488c4c50ffa") @db.VarChar
+  revoked       Boolean        @default(false)
+  expires_at    DateTime       @db.Timestamp(6)
+  accessTokenId String?        @db.VarChar
+  access_tokens access_tokens? @relation(fields: [accessTokenId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_55e00528f3e7b3c6ae2a042bd86")
+}
+
+model reset_password_tokens {
+  token      String   @id(map: "PK_138983ab711b02d0eef2df23a83") @db.VarChar
+  expires_at DateTime @db.Timestamp(6)
+}
+
+model system_roles {
+  id                 Int                    @id(map: "PK_468b99ca2261e84113b6ec40814") @default(autoincrement())
+  code               system_roles_code_enum @unique(map: "UQ_7e6c568c1dafd13b970bdbb48b1")
+  name               String                 @unique(map: "UQ_e17f07bcbed1c457ff7fcc13797") @db.VarChar
+  description        String                 @db.VarChar
+  created_at         DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime               @default(now()) @db.Timestamptz(6)
+  system_users_roles system_users_roles[]
+}
+
+model system_users {
+  id                 Int                         @id(map: "PK_cd8917a46de98ec75f9197911c0") @default(autoincrement())
+  email              String                      @unique(map: "UQ_73dff187ed765e8403bf5fc911e") @db.VarChar(255)
+  password           String                      @db.VarChar
+  avatar             String?                     @db.VarChar(100)
+  first_name         String?                     @db.VarChar(50)
+  last_name          String?                     @db.VarChar(50)
+  full_name          String?                     @db.VarChar
+  jobtitle           system_users_jobtitle_enum?
+  created_at         DateTime                    @default(now()) @db.Timestamp(6)
+  updated_at         DateTime                    @default(now()) @db.Timestamp(6)
+  access_tokens      access_tokens[]
+  system_users_roles system_users_roles[]
+}
+
+model system_users_roles {
+  system_users_id Int
+  system_roles_id Int
+  system_users    system_users @relation(fields: [system_users_id], references: [id], onDelete: Cascade, map: "FK_a30f2aa46b3299659cd96ba1766")
+  system_roles    system_roles @relation(fields: [system_roles_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_dfb1ca321fd117249c2e980fa99")
+
+  @@id([system_users_id, system_roles_id], map: "PK_a98d19701cae0027cdfa8074028")
+  @@index([system_users_id], map: "IDX_a30f2aa46b3299659cd96ba176")
+  @@index([system_roles_id], map: "IDX_dfb1ca321fd117249c2e980fa9")
+}
+
+model tasks {
+  id               Int               @id(map: "PK_8d12ff38fcc62aaba2cab748772") @default(autoincrement())
+  type             tasks_type_enum
+  status           tasks_status_enum @default(PENDING)
+  file_path        String?           @db.VarChar
+  errors_file_path String?           @db.VarChar
+  data             Json?
+  is_deleted       Boolean           @default(false)
+  deleted_at       DateTime?         @db.Timestamptz(6)
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @db.Timestamptz(6)
+}
+
+enum bills_status_enum {
+  INGRESADO
+  LIQUIDADO
+}
+
+enum bills_type_enum {
+  COBRAR
+  PAGAR
+}
+
+enum chart_of_accounts_files_status_enum {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum system_roles_code_enum {
+  SA
+  AD
+  EP
+  LOG
+  FIN
+}
+
+enum system_users_jobtitle_enum {
+  presidente
+  productora_ejecutiva  @map("productora ejecutiva")
+  log_stica             @map("logística")
+  business_intelligence @map("business intelligence")
+  desarrollador
+  finanzas
+  equipo_101            @map("equipo 101")
+}
+
+enum tasks_status_enum {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum tasks_type_enum {
+  CARGAR_FACTURAS
+}
